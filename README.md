@@ -86,7 +86,7 @@ There are two versions of each of the arithmetic operators (addition, subtractio
 		<td>11</td><td>Divide</td><td>r[A] := r[B] / r[C]</td>
 	</tr>
 	<tr>
-		<td>12</td><td>Divide (signed)</td><td>r[A] := r[B] / r[C] (round towards 0)</td>
+		<td>12</td><td>Divide (signed)</td><td>r[A] := r[B] / r[C] (rounds towards 0)</td>
 	</tr>
 	<tr>
 		<td>13</td><td>Bitwise NAND</td><td>r[A] := r[B] NAND r[C]</td>
