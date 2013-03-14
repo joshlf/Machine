@@ -27,7 +27,7 @@ Execution then begins. At each execution except for the first one, the counter i
 
 ##Instructions
 In general, the format for instruction words is as follows:
-The most significant four bits encode the operator. There are 13 operators.
+The most significant five bits encode the operator. There are 18 operators.
 
 Most instructions require up to three registers for execution (for example, r[A] := r[B] + r[C]). The least significant four bits encode C, the next four bits encode B, and the last four bits encode A:
 
@@ -35,16 +35,15 @@ Most instructions require up to three registers for execution (for example, r[A]
                     A       C
                     vvvv    vvvv
 VUTSRQPONMLKJIHGFEDCBA9876543210
-^^^^                    ^^^^
+^^^^^                   ^^^^
 opcode                  B
 </pre>
 
 So, for example, if the opcode corresponded to the addition instruction, and A = 0, B = 1, C = 2, this would result in r[0] := r[1] + r[2].
 
-###Instruction Semantics
-<table>
+There are two versions of each of the arithmetic operators (addition, subtraction, multiplication, division) - unsigned and signed. The unsigned versions perform the operations assuming that the values in all registers are 32-bit unsigned integers. The signed versions perform the operations assuming that the values in all registers are 32-bit two's complement signed integers.
 
-</table>
+###Instruction Semantics
 
 <table>
 	<tr>
@@ -69,25 +68,40 @@ So, for example, if the opcode corresponded to the addition instruction, and A =
 		<td>5</td><td>Add</td><td>r[A] := r[B] + r[C]</td>
 	</tr>
 	<tr>
-		<td>6</td><td>Multiply</td><td>r[A] := r[B] * r[C]</td>
+		<td>6</td><td>Add (signed)</td><td>r[A] := r[B] + r[C]</td>
 	</tr>
 	<tr>
-		<td>7</td><td>Divide</td><td>r[A] := r[B] / r[C]</td>
+		<td>7</td><td>Subtract</td><td>r[A] := r[B] - r[C]</td>
 	</tr>
 	<tr>
-		<td>8</td><td>Bitwise NAND</td><td>r[A] := r[B] NAND r[C]</td>
+		<td>8</td><td>Subtract (signed)</td><td>r[A] := r[B] - r[C]</td>
 	</tr>
 	<tr>
-		<td>9</td><td>Halt</td><td>Halt the machine</td>
+		<td>9</td><td>Multiply</td><td>r[A] := r[B] * r[C]</td>
 	</tr>
 	<tr>
-		<td>10</td><td>Output</td><td>The value in r[A] is displayed on the I/O device (as ASCII). Only values in [0,255] allowed.</td>
+		<td>10</td><td>Multiply (signed)</td><td>r[A] := r[B] * r[C]</td>
 	</tr>
 	<tr>
-		<td>11</td><td>Input</td><td>Machine waits for input on the I/O device. Input is stored in r[A], which will be a value in [0,255]. If EOF was signaled, r[A] will be all 1's.</td>
+		<td>11</td><td>Divide</td><td>r[A] := r[B] / r[C]</td>
 	</tr>
 	<tr>
-		<td>12</td><td>Load Value</td><td>The value specified will be loaded into r[A] (see Load Value semantics below).</td>
+		<td>12</td><td>Divide (signed)</td><td>r[A] := r[B] / r[C] (round towards 0)</td>
+	</tr>
+	<tr>
+		<td>13</td><td>Bitwise NAND</td><td>r[A] := r[B] NAND r[C]</td>
+	</tr>
+	<tr>
+		<td>14</td><td>Halt</td><td>Halt the machine</td>
+	</tr>
+	<tr>
+		<td>15</td><td>Output</td><td>The value in r[A] is displayed on the I/O device (as ASCII). Only values in [0,255] allowed.</td>
+	</tr>
+	<tr>
+		<td>16</td><td>Input</td><td>Machine waits for input on the I/O device. Input is stored in r[A], which will be a value in [0,255]. If EOF was signaled, r[A] will be all 1's.</td>
+	</tr>
+	<tr>
+		<td>17</td><td>Load Value</td><td>The value specified will be loaded into r[A] (see Load Value semantics below).</td>
 	</tr>
 </table>
 
@@ -96,11 +110,11 @@ So, for example, if the opcode corresponded to the addition instruction, and A =
 The load value instruction loads a literal value which is encoded in the instruction word itself. The layout of a load value word differs from a normal instruction word since it must encode a literal value as well as the register addresses. When a load value instruction is executed, the value is loaded into r[A].
 
 <pre>
-	   A
-    vvvv
+        A
+     vvvv
 VUTSRQPONMLKJIHGFEDCBA9876543210
-^^^^    ^^^^^^^^^^^^^^^^^^^^^^^^
-opcode  value
+^^^^^    ^^^^^^^^^^^^^^^^^^^^^^^
+opcode   value
 </pre>
 
 <b>Compare</b><br>
