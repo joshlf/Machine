@@ -107,7 +107,7 @@ There are two versions of each of the arithmetic operators (addition, subtractio
 
 ###Special Operations
 <b>Load Value</b><br>
-The load value instruction loads a literal value which is encoded in the instruction word itself. The layout of a load value word differs from a normal instruction word since it must encode a literal value as well as the register addresses. When a load value instruction is executed, the value is loaded into r[A].
+The load value instruction loads a literal value which is encoded in the instruction word itself. The layout of a load value word differs from a normal instruction word since it must encode a literal value as well as the register addresses. When a load value instruction is executed, the value is loaded into r[A]. The opcode is coded in the most significant five bits. The register address, A, is coded in the next four bits. The value itself is coded in the remaining 23 bits.
 
 <pre>
         A
