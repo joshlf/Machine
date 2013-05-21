@@ -41,7 +41,7 @@ opcode                  B
 
 So, for example, if the opcode corresponded to the addition instruction, and A = 0, B = 1, C = 2, this would result in r[0] := r[1] + r[2].
 
-There are two versions of each of the arithmetic operators (addition, subtraction, multiplication, division) - unsigned and signed. The unsigned versions perform the operations assuming that the values in all registers are 32-bit unsigned integers. The signed versions perform the operations assuming that the values in all registers are 32-bit two's complement signed integers.
+There are two versions of each of the arithmetic operators (addition, subtraction, multiplication, division), and of the greater than and less than comparison operators - unsigned and signed. The unsigned versions perform the operations assuming that the values in all registers are 32-bit unsigned integers. The signed versions perform the operations assuming that the values in all registers are 32-bit two's complement signed integers.
 
 ###Instruction Semantics
 
@@ -53,60 +53,71 @@ There are two versions of each of the arithmetic operators (addition, subtractio
 		<td>0</td><td>Move</td><td>r[A] := r[B]</td>
   	</tr>
 	<tr>
-		<td>1</td><td>Compare</td><td>Compare r[A] and r[B] and store the result in r[C] (see description below)</td>
+		<td>1</td><td>Equality</td><td>If r[A] == r[B], r[C] := 1, otherwise r[C] := 0</td>
 	</tr>
 	<tr>
-		<td>2</td><td>Conditional Jump</td><td>If bit B of r[A] is 1, set the program counter to r[C] (see description below)</td>
+		<td>2</td><td>Greater Than</td><td>If r[A] &gt; r[B], r[C] := 1, otherwise r[C] := 0</td>
 	</tr>
 	<tr>
-		<td>3</td><td>Load</td><td>r[A] := m[r[B]]</td>
+		<td>3</td><td>Greater Than (signed)</td><td>If r[A] &gt; r[B], r[C] := 1, otherwise r[C] := 0</td>
 	</tr>
 	<tr>
-		<td>4</td><td>Store</td><td>m[r[A]] := r[B]</td>
+		<td>4</td><td>Less Than</td><td>If r[A] &lt; r[B], r[C] := 1, otherwise r[C] := 0</td>
 	</tr>
 	<tr>
-		<td>5</td><td>Add</td><td>r[A] := r[B] + r[C]</td>
+		<td>5</td><td>Less Than (signed)</td><td>If r[A] &lt; r[B], r[C] := 1, otherwise r[C] := 0</td>
 	</tr>
 	<tr>
-		<td>6</td><td>Add (signed)</td><td>r[A] := r[B] + r[C]</td>
+		<td>6</td><td>Conditional Jump</td><td>If r[A] == 1, set the program counter to r[B]</td>
 	</tr>
 	<tr>
-		<td>7</td><td>Subtract</td><td>r[A] := r[B] - r[C]</td>
+		<td>7</td><td>Load</td><td>r[A] := m[r[B]]</td>
 	</tr>
 	<tr>
-		<td>8</td><td>Subtract (signed)</td><td>r[A] := r[B] - r[C]</td>
+		<td>8</td><td>Store</td><td>m[r[A]] := r[B]</td>
 	</tr>
 	<tr>
-		<td>9</td><td>Multiply</td><td>r[A] := r[B] * r[C]</td>
+		<td>9</td><td>Add</td><td>r[A] := r[B] + r[C]</td>
 	</tr>
 	<tr>
-		<td>10</td><td>Multiply (signed)</td><td>r[A] := r[B] * r[C]</td>
+		<td>10</td><td>Add (signed)</td><td>r[A] := r[B] + r[C]</td>
 	</tr>
 	<tr>
-		<td>11</td><td>Divide</td><td>r[A] := r[B] / r[C]</td>
+		<td>11</td><td>Subtract</td><td>r[A] := r[B] - r[C]</td>
 	</tr>
 	<tr>
-		<td>12</td><td>Divide (signed)</td><td>r[A] := r[B] / r[C] (rounds towards 0)</td>
+		<td>12</td><td>Subtract (signed)</td><td>r[A] := r[B] - r[C]</td>
 	</tr>
 	<tr>
-		<td>13</td><td>Bitwise NAND</td><td>r[A] := r[B] NAND r[C]</td>
+		<td>13</td><td>Multiply</td><td>r[A] := r[B] * r[C]</td>
 	</tr>
 	<tr>
-		<td>14</td><td>Halt</td><td>Halt the machine</td>
+		<td>14</td><td>Multiply (signed)</td><td>r[A] := r[B] * r[C]</td>
 	</tr>
 	<tr>
-		<td>15</td><td>Output</td><td>The value in r[A] is displayed on the I/O device (as ASCII). Only values in [0,255] allowed.</td>
+		<td>15</td><td>Divide</td><td>r[A] := r[B] / r[C]</td>
 	</tr>
 	<tr>
-		<td>16</td><td>Input</td><td>Machine waits for input on the I/O device. Input is stored in r[A], which will be a value in [0,255]. If EOF was signaled, r[A] will be all 1's.</td>
+		<td>16</td><td>Divide (signed)</td><td>r[A] := r[B] / r[C] (rounds towards 0)</td>
 	</tr>
 	<tr>
-		<td>17</td><td>Load Value</td><td>The value specified will be loaded into r[A] (see Load Value semantics below).</td>
+		<td>17</td><td>Bitwise NAND</td><td>r[A] := r[B] NAND r[C]</td>
+	</tr>
+	<tr>
+		<td>18</td><td>Halt</td><td>Halt the machine</td>
+	</tr>
+	<tr>
+		<td>19</td><td>Output</td><td>The value in r[A] is displayed on the I/O device (as ASCII). Only values in [0,255] allowed.</td>
+	</tr>
+	<tr>
+		<td>20</td><td>Input</td><td>Machine waits for input on the I/O device. Input is stored in r[A], which will be a value in [0,255]. If EOF was signaled, r[A] will be all 1's.</td>
+	</tr>
+	<tr>
+		<td>21</td><td>Load Value</td><td>The value specified will be loaded into r[A] (see Load Value semantics below).</td>
 	</tr>
 </table>
 
-###Special Operations
-<b>Load Value</b><br>
+###Load Value
 The load value instruction loads a literal value which is encoded in the instruction word itself. The layout of a load value word differs from a normal instruction word since it must encode a literal value as well as the register addresses. When a load value instruction is executed, the value is loaded into r[A]. The opcode is coded in the most significant five bits. The register address, A, is coded in the next four bits. The value itself is coded in the remaining 23 bits.
 
 <pre>
@@ -116,33 +127,6 @@ VUTSRQPONMLKJIHGFEDCBA9876543210
 ^^^^^    ^^^^^^^^^^^^^^^^^^^^^^^
 opcode   value
 </pre>
-
-<b>Compare</b><br>
-The compare instruction performs multiple comparisons of r[A] and r[B], storing the results as bits in r[C]. For example, if r[A] == r[B], the least significant bit of r[C] is set to 1. Otherwise, it is set to 0. Some of these comparisons are performed assuming that the values in the registers are unsigned integers, and others are performed assuming that they are two's complement signed integers. The table below outlines all comparisons.
-
-<table>
-	<tr>
-		<td><b>Bit (offset from least significant)</b></td><td><b>Comparison</b></td>
-  	</tr>
-	<tr>
-		<td>0</td><td>r[A] == r[B]</td>
-	</tr>
-	<tr>
-		<td>1</td><td>r[A] &gt; r[B] (unsigned)</td>
-	</tr>
-	<tr>
-		<td>2</td><td>r[A] &lt; r[B] (unsigned)</td>
-	</tr>
-	<tr>
-		<td>3</td><td>r[A] &gt; r[B] (singed)</td>
-	</tr>
-	<tr>
-		<td>4</td><td>r[A] &lt; r[B] (signed)</td>
-	</tr>
-</table>
-
-<b>Conditional Jump</b><br>
-The conditional jump instruction checks the bth least significant bit (lsb) of r[A]. If it is 1, the program counter is set equal to r[C]. The bth lsb is meant to be one of the bits set by the compare instruction above.
 
 ##Failure States
 During normal operation, the machine moves from one state to the next with the execution of each instruction (a machine state in this case refers to the state of all of the registers and all of the words in memory). However, certain operations will result in the machine existing in an invalid state, or Failure State. If the machine moves into a failure state, execution will be halted. The following will result in failure states:
