@@ -68,7 +68,7 @@ There are two versions of each of the arithmetic operators (addition, subtractio
 		<td>5</td><td>Less Than (signed)</td><td>If r[A] &lt; r[B], r[C] := 1, otherwise r[C] := 0</td>
 	</tr>
 	<tr>
-		<td>6</td><td>Conditional Jump</td><td>If r[A] == 1, set the program counter to r[B]</td>
+		<td>6</td><td>Conditional Jump</td><td>If r[A] != 0, set the program counter to r[B]</td>
 	</tr>
 	<tr>
 		<td>7</td><td>Load</td><td>r[A] := m[r[B]]</td>
