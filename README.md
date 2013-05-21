@@ -53,19 +53,19 @@ There are two versions of each of the arithmetic operators (addition, subtractio
 		<td>0</td><td>Move</td><td>r[A] := r[B]</td>
   	</tr>
 	<tr>
-		<td>1</td><td>Equality</td><td>If r[A] == r[B], r[C] := 1, otherwise r[C] := 0</td>
+		<td>1</td><td>Equality</td><td>If r[B] == r[C], r[A] := 1, otherwise r[A] := 0</td>
 	</tr>
 	<tr>
-		<td>2</td><td>Greater Than</td><td>If r[A] &gt; r[B], r[C] := 1, otherwise r[C] := 0</td>
+		<td>2</td><td>Greater Than</td><td>If r[B] &gt; r[C], r[A] := 1, otherwise r[A] := 0</td>
 	</tr>
 	<tr>
-		<td>3</td><td>Greater Than (signed)</td><td>If r[A] &gt; r[B], r[C] := 1, otherwise r[C] := 0</td>
+		<td>3</td><td>Greater Than (signed)</td><td>If r[B] &gt; r[C], r[A] := 1, otherwise r[A] := 0</td>
 	</tr>
 	<tr>
-		<td>4</td><td>Less Than</td><td>If r[A] &lt; r[B], r[C] := 1, otherwise r[C] := 0</td>
+		<td>4</td><td>Less Than</td><td>If r[B] &lt; r[C], r[A] := 1, otherwise r[A] := 0</td>
 	</tr>
 	<tr>
-		<td>5</td><td>Less Than (signed)</td><td>If r[A] &lt; r[B], r[C] := 1, otherwise r[C] := 0</td>
+		<td>5</td><td>Less Than (signed)</td><td>If r[B] &lt; r[C], r[A] := 1, otherwise r[A] := 0</td>
 	</tr>
 	<tr>
 		<td>6</td><td>Conditional Jump</td><td>If r[A] != 0, set the program counter to r[B]</td>
