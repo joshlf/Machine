@@ -27,7 +27,7 @@ Execution then begins. At each execution except for the first one, the counter i
 
 ##Instructions
 In general, the format for instruction words is as follows:
-The most significant five bits encode the operator. There are 18 operators.
+The most significant five bits encode the operator. There are 22 operators.
 
 Most instructions require up to three registers for execution (for example, r[A] := r[B] + r[C]). The least significant four bits encode C, the next four bits encode B, and the last four bits encode A:
 
