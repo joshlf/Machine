@@ -27,7 +27,7 @@ Execution then begins. At each execution except for the first one, the counter i
 
 ##Instructions
 In general, the format for instruction words is as follows:
-The most significant five bits encode the operator. There are 22 operators.
+The most significant five bits encode the operator. There are 25 operators.
 
 Most instructions require up to three registers for execution (for example, r[A] := r[B] + r[C]). The least significant four bits encode C, the next four bits encode B, and the last four bits encode A:
 
@@ -101,19 +101,28 @@ There are two versions of each of the arithmetic operators (addition, subtractio
 		<td>16</td><td>Divide (signed)</td><td>r[A] := r[B] / r[C] (rounds towards 0)</td>
 	</tr>
 	<tr>
-		<td>17</td><td>Bitwise NAND</td><td>r[A] := r[B] NAND r[C]</td>
+		<td>17</td><td>Bitwise And</td><td>r[A] := r[B] & r[C]</td>
 	</tr>
 	<tr>
-		<td>18</td><td>Halt</td><td>Halt the machine</td>
+		<td>18</td><td>Bitwise Or</td><td>r[A] := r[B] | r[C]</td>
 	</tr>
 	<tr>
-		<td>19</td><td>Output</td><td>The value in r[A] is displayed on the I/O device (as ASCII). Only values in [0,255] allowed.</td>
+		<td>19</td><td>Bitwise Exclusive Or</td><td>r[A] := r[B] ^ r[C]</td>
 	</tr>
 	<tr>
-		<td>20</td><td>Input</td><td>Machine waits for input on the I/O device. Input is stored in r[A], which will be a value in [0,255]. If EOF was signaled, r[A] will be all 1's.</td>
+		<td>20</td><td>Bitwise Complement</td><td>r[A] := ~r[B]</td>
 	</tr>
 	<tr>
-		<td>21</td><td>Load Value</td><td>The value specified will be loaded into r[A] (see Load Value semantics below).</td>
+		<td>21</td><td>Halt</td><td>Halt the machine</td>
+	</tr>
+	<tr>
+		<td>22</td><td>Output</td><td>The value in r[A] is displayed on the I/O device (as ASCII). Only values in [0,255] allowed.</td>
+	</tr>
+	<tr>
+		<td>23</td><td>Input</td><td>Machine waits for input on the I/O device. Input is stored in r[A], which will be a value in [0,255]. If EOF was signaled, r[A] will be all 1's.</td>
+	</tr>
+	<tr>
+		<td>24</td><td>Load Value</td><td>The value specified will be loaded into r[A] (see Load Value semantics below).</td>
 	</tr>
 </table>
 
