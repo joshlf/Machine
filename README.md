@@ -19,9 +19,9 @@ Machine has a 32-bit memory address space. It is word-addressed, with each addre
 Machine keeps a counter which holds the address of the word in memory which is to be executed next. The counter is incremented before each execution.
 
 ##Binaries
-Binaries are files containing the words of a program, in big-endian byte order. The format for binaries is quite simple. The first word specifies how many words will be available in memory. It must be at least as large as the size of the binary itself.
+Binaries are files containing the words of a program, in big-endian byte order. The format for binaries is quite simple. The first word specifies how many words will be available in memory. Its minimum value is one less than the size of the binary.
 
-To begin, memory of the proper size is allocated and initialized to zero. All of the registers are also intialized to zero. Then, the words of the binary are loaded into memory starting with word 0 (this includes the first word of the binary, the one which encodes memory length). The program counter is then set to point at word 1 (the second word).
+To begin, memory of the proper size is allocated and initialized to zero. All of the registers are also intialized to zero. Then, the words of the binary are loaded into memory starting with word 1 (this excludes the first word of the binary, the one which encodes memory length). Word 1 of the binary is loaded into word 0 of memory, and so on. The program counter is then set to point at word 0 of memory.
 
 Execution then begins. At each execution except for the first one, the counter is incremented before the command is executed (this allows for jumps to work properly, otherwise jumping to word 10 would end up executing word 11, for example). The word at the address given by the counter is then executed as a machine instruction.
 
