@@ -34,15 +34,15 @@ typedef union {
         unsigned int c:4;
         unsigned int b:4;
         unsigned int a:4;
-        unsigned int junk:16;
-        unsigned int op:4;
+        unsigned int junk:15;
+        unsigned int op:5;
     } fields;
     
     // Bit fields for load value instruction word
     struct {
-        unsigned int val:24;
+        unsigned int val:23;
         unsigned int a:4;
-        unsigned int op:4;
+        unsigned int op:5;
     } loadValueFields;
 } instruction;
 
@@ -116,7 +116,7 @@ state loadMachine(unsigned char *bin, mword len) {
     memory_size <<= 8;
     memory_size |= bin[3];
     
-    if ((memory_size * 4) < (len - 1))
+    if ((memory_size * 4) < (len - 4))
         return FAIL;
     
     // Use calloc so memory is zero'd
@@ -125,7 +125,22 @@ state loadMachine(unsigned char *bin, mword len) {
     if (memory == NULL)
         return MEM;
     
-    memcpy(memory, bin + sizeof(*memory), len);
+    unsigned char *b = bin + 4;
+    mword newWord;
+    for (int i = 0; b < bin + len; i++) {
+        newWord = *b;
+        b++;
+        newWord <<= 8;
+        newWord |= *b;
+        b++;
+        newWord <<= 8;
+        newWord |= *b;
+        b++;
+        newWord <<= 8;
+        newWord |= *b;
+        b++;
+        memory[i] = newWord;
+    }
     
     // Zero out registers
     memset(reg, 0, sizeof(*reg) * 16);
