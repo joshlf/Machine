@@ -151,3 +151,9 @@ During normal operation, the machine moves from one state to the next with the e
 * If an instructions loads from or stores to a word which is not part of allocated memory, the machine will fail.
 * If an instruction outputs a value not in the range [0,255], the machine will fail.
 * If there are more instructions in a binary (exluding the first word) than there are words allocated in memory, the machine will fail.
+
+##Building
+To build Machine, simply do:
+```shell
+gcc -std=c99 main.c machine.c -o machine
+```
