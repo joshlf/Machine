@@ -33,7 +33,7 @@ Execution then begins. At each execution except for the first one, the counter i
 
 ##Instructions
 In general, the format for instruction words is as follows:
-The most significant five bits encode the operator. There are 25 operators.
+The most significant six bits encode the operator. There are 25 operators.
 
 Most instructions require up to three registers for execution (for example, r[A] := r[B] + r[C]). The least significant four bits encode C, the next four bits encode B, and the last four bits encode A:
 
@@ -41,7 +41,7 @@ Most instructions require up to three registers for execution (for example, r[A]
                     A       C
                     vvvv    vvvv
 VUTSRQPONMLKJIHGFEDCBA9876543210
-^^^^^                   ^^^^
+^^^^^^                  ^^^^
 opcode                  B
 </pre>
 
@@ -133,14 +133,14 @@ There are two versions of the multiplication, division, greater than, less than,
 </table>
 
 ###Load Value
-The load value instruction loads a literal value which is encoded in the instruction word itself. The layout of a load value word differs from a normal instruction word since it must encode a literal value as well as the register addresses. When a load value instruction is executed, the value is loaded into r[A]. The opcode is coded in the most significant five bits. The register address, A, is coded in the next four bits. The value itself is coded in the remaining 23 bits.
+The load value instruction loads a literal value which is encoded in the instruction word itself. The layout of a load value word differs from a normal instruction word since it must encode a literal value as well as the register addresses. When a load value instruction is executed, the value is loaded into r[A]. The opcode is coded in the most significant six bits. The register address, A, is coded in the next four bits. The value itself is coded in the remaining 22 bits.
 
 <pre>
-        A
-     vvvv
+         A
+      vvvv
 VUTSRQPONMLKJIHGFEDCBA9876543210
-^^^^^    ^^^^^^^^^^^^^^^^^^^^^^^
-opcode   value
+^^^^^^    ^^^^^^^^^^^^^^^^^^^^^^
+opcode    value
 </pre>
 
 ##Failure States
@@ -155,5 +155,5 @@ During normal operation, the machine moves from one state to the next with the e
 ##Building
 To build Machine, simply do:
 ```shell
-gcc -std=c99 main.c machine.c -o machine
+make
 ```

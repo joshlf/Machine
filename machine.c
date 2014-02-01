@@ -153,7 +153,6 @@ state runMachine(unsigned char *bin, uint32_t len) {
     return m.state;
 }
 
-// Return relevant error, or RUN upon success
 void loadMachine(machine *m, unsigned char *bin, mword len) {
     
     m->memory_size = bin[0];
@@ -194,7 +193,7 @@ void loadMachine(machine *m, unsigned char *bin, mword len) {
         m->memory[i] = newWord;
     }
     
-    // Zero out m->registers
+    // Zero out registers
     memset(m->reg, 0, sizeof(*(m->reg)) * 16);
     m->ctr = 0;
     m->state = RUN;
@@ -340,21 +339,25 @@ state runCmd(machine *m, instruction instr) {
     return RUN;
 }
 
+// Move
 state move(machine *m, instruction instr) {
     m->reg[instr.fields.a] = m->reg[instr.fields.b];
     return RUN;
 }
 
+// Equals
 state eq(machine *m, instruction instr) {
     m->reg[instr.fields.a] = m->reg[instr.fields.b] == m->reg[instr.fields.c];
     return RUN;
 }
 
+// Greater than
 state gt(machine *m, instruction instr) {
     m->reg[instr.fields.a] = m->reg[instr.fields.b] > m->reg[instr.fields.c];
     return RUN;
 }
 
+// Signed greater than
 state sgt(machine *m, instruction instr) {
     signConverter b, c;
     b.unsign = m->reg[instr.fields.b];
@@ -364,11 +367,13 @@ state sgt(machine *m, instruction instr) {
     return RUN;
 }
 
+// Less than
 state lt(machine *m, instruction instr) {
     m->reg[instr.fields.a] = m->reg[instr.fields.b] < m->reg[instr.fields.c];
     return RUN;
 }
 
+// Signed less than
 state slt(machine *m, instruction instr) {
     signConverter b, c;
     b.unsign = m->reg[instr.fields.b];
@@ -378,6 +383,7 @@ state slt(machine *m, instruction instr) {
     return RUN;
 }
 
+// Conditional jump
 state cjmp(machine *m, instruction instr) {
     if (m->reg[instr.fields.a]) {
         m->ctr = m->reg[instr.fields.b];
@@ -385,6 +391,7 @@ state cjmp(machine *m, instruction instr) {
     return RUN;
 }
 
+// Load
 state load(machine *m, instruction instr) {
     if (m->protected) {
         if (m->reg[instr.fields.b] >= m->memory_size)
@@ -400,6 +407,7 @@ state load(machine *m, instruction instr) {
     return RUN;
 }
 
+// Store
 state store(machine *m, instruction instr) {
     if (m->protected) {
         if (m->reg[instr.fields.b] >= m->memory_size)
@@ -415,21 +423,25 @@ state store(machine *m, instruction instr) {
     return RUN;
 }
 
+// Add
 state add(machine *m, instruction instr) {
     m->reg[instr.fields.a] = m->reg[instr.fields.b] + m->reg[instr.fields.c];
     return RUN;
 }
 
+// Subtract
 state sub(machine *m, instruction instr) {
     m->reg[instr.fields.a] = m->reg[instr.fields.b] - m->reg[instr.fields.c];
     return RUN;
 }
 
+// Multiply
 state mult(machine *m, instruction instr) {
     m->reg[instr.fields.a] = m->reg[instr.fields.b] * m->reg[instr.fields.c];
     return RUN;
 }
 
+// Signed multiply
 state smult(machine *m, instruction instr) {
     signConverter a, b, c;
     a.unsign = m->reg[instr.fields.a];
@@ -444,6 +456,7 @@ state smult(machine *m, instruction instr) {
     return RUN;
 }
 
+// Divide
 state divide(machine *m, instruction instr) {
     if (m->protected) {
         if (m->reg[instr.fields.c] == 0)
@@ -459,6 +472,7 @@ state divide(machine *m, instruction instr) {
     return RUN;
 }
 
+// Signed divide
 state sdivide(machine *m, instruction instr) {
     if (m->protected) {
         if (m->reg[instr.fields.c] == 0)
@@ -483,36 +497,43 @@ state sdivide(machine *m, instruction instr) {
     return RUN;
 }
 
+// And
 state and(machine *m, instruction instr) {
     m->reg[instr.fields.a] = m->reg[instr.fields.b] & m->reg[instr.fields.c];
     return RUN;
 }
 
+// Or
 state or(machine *m, instruction instr) {
     m->reg[instr.fields.a] = m->reg[instr.fields.b] | m->reg[instr.fields.c];
     return RUN;
 }
 
+// Exclusive or
 state xor(machine *m, instruction instr) {
     m->reg[instr.fields.a] = m->reg[instr.fields.b] ^ m->reg[instr.fields.c];
     return RUN;
 }
 
+// Not
 state not(machine *m, instruction instr) {
     m->reg[instr.fields.a] = ~m->reg[instr.fields.b];
     return RUN;
 }
 
+// Left shift
 state lshift(machine *m, instruction instr) {
     m->reg[instr.fields.a] = m->reg[instr.fields.b] << m->reg[instr.fields.c];
     return RUN;
 }
 
+// Right shift
 state rshift(machine *m, instruction instr) {
     m->reg[instr.fields.a] = m->reg[instr.fields.b] >> m->reg[instr.fields.c];
     return RUN;
 }
 
+// Halt
 state hlt(machine *m, instruction instr) {
     if (!m->protected) {
         fault(m, INSTR_FAULT);
@@ -522,6 +543,7 @@ state hlt(machine *m, instruction instr) {
     return HALT;
 }
 
+// Output
 state out(machine *m, instruction instr) {
     if (!m->protected) {
         fault(m, INSTR_FAULT);
@@ -534,6 +556,7 @@ state out(machine *m, instruction instr) {
     return RUN;
 }
 
+// Input
 state in(machine *m, instruction instr) {
     if (!m->protected) {
         fault(m, INSTR_FAULT);
@@ -548,11 +571,13 @@ state in(machine *m, instruction instr) {
     return RUN;
 }
 
+// Load value
 state lval(machine *m, instruction instr) {
     m->reg[instr.loadValueFields.a] = instr.loadValueFields.val;
     return RUN;
 }
 
+// User mode
 state umode(machine *m, instruction instr) {
     if (!m->protected) {
         fault(m, INSTR_FAULT);
@@ -563,6 +588,7 @@ state umode(machine *m, instruction instr) {
     return RUN;
 }
 
+// Lookaside load
 state lload(machine *m, instruction instr) {
     if (!m->protected) {
         fault(m, INSTR_FAULT);
@@ -572,6 +598,7 @@ state lload(machine *m, instruction instr) {
     return RUN;
 }
 
+// Lookaside store
 state lstore(machine *m, instruction instr) {
     if (!m->protected) {
         fault(m, INSTR_FAULT);
@@ -581,6 +608,7 @@ state lstore(machine *m, instruction instr) {
     return RUN;
 }
 
+// Set callback
 state scall(machine *m, instruction instr) {
     if (!m->protected) {
         fault(m, INSTR_FAULT);
@@ -590,6 +618,7 @@ state scall(machine *m, instruction instr) {
     return RUN;
 }
 
+// Fault move
 state fmove(machine *m, instruction instr) {
     if (!m->protected) {
         fault(m, INSTR_FAULT);
@@ -599,6 +628,7 @@ state fmove(machine *m, instruction instr) {
     return RUN;
 }
 
+// Program counter lookaside load
 state pclload(machine *m, instruction instr) {
     if (!m->protected) {
         fault(m, INSTR_FAULT);
@@ -608,6 +638,7 @@ state pclload(machine *m, instruction instr) {
     return RUN;
 }
 
+// Store virtual memory low
 state svmlow(machine *m, instruction instr) {
     if (!m->protected) {
         fault(m, INSTR_FAULT);
@@ -617,6 +648,7 @@ state svmlow(machine *m, instruction instr) {
     return RUN;
 }
 
+// Store virtual memory high
 state svmhi(machine *m, instruction instr) {
     if (!m->protected) {
         fault(m, INSTR_FAULT);
@@ -626,6 +658,7 @@ state svmhi(machine *m, instruction instr) {
     return RUN;
 }
 
+// Program counter timer load
 state tload(machine *m, instruction instr) {
     if (!m->protected) {
         fault(m, INSTR_FAULT);
@@ -635,6 +668,7 @@ state tload(machine *m, instruction instr) {
     return RUN;
 }
 
+// Program counter timer store
 state tstore(machine *m, instruction instr) {
     if (!m->protected) {
         fault(m, INSTR_FAULT);
@@ -644,6 +678,7 @@ state tstore(machine *m, instruction instr) {
     return RUN;
 }
 
+// Trigger
 state trg(machine *m, instruction instr) {
     if (!m->protected) {
         fault(m, TRG_FAULT);
