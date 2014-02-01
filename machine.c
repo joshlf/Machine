@@ -21,9 +21,34 @@ typedef union {
 
 #define MAX_MWORD 0xFFFFFFFF
 
-state loadMachine(unsigned char *bin, mword len);
-state runner();
-void  cleanup();
+typedef struct {
+    state state;
+
+    // m->registers
+    mword reg[16];
+
+    // Program counter
+    mword ctr;
+
+    // Memory
+    mword *memory;
+    mword memory_size;
+
+    // Protected mode
+    bool protected;
+    mword lreg[16];
+    mword callback;
+    mword fault;
+    mword lctr;
+    mword vlow, vhigh;
+    mword timer;
+
+} machine;
+
+void loadMachine(machine *m, unsigned char *bin, mword len);
+void runner(machine *m);
+void cleanup(machine *m);
+void fault(machine *m, mword fcode);
 
 // Used to extract bit fields
 typedef union {
@@ -34,29 +59,37 @@ typedef union {
         unsigned int c:4;
         unsigned int b:4;
         unsigned int a:4;
-        unsigned int junk:15;
-        unsigned int op:5;
+        unsigned int junk:14;
+        unsigned int op:6;
     } fields;
     
     // Bit fields for load value instruction word
     struct {
-        unsigned int val:23;
+        unsigned int val:22;
         unsigned int a:4;
-        unsigned int op:5;
+        unsigned int op:6;
     } loadValueFields;
 } instruction;
 
 // Type of functions which handle instructions
-typedef state(cmd)(instruction);
+typedef state(cmd)(machine *m, instruction instr);
 
 cmd runCmd;
 
 // The name "div" conflicts with a stdlib function
 // so the naming convention must be broken with "divide" and "sdivide"
-cmd move, eq, gt, sgt, lt, slt, cjmp, load, store, add, sadd, sub, ssub, mult, smult, divide, sdivide, and, or, xor, not, hlt, out, in, lval;
+
+// User mode
+cmd move, eq, gt, sgt, lt, slt, cjmp, load, store, add, sadd, sub, ssub, mult, smult, divide, sdivide, and, or, xor, not, lshift, rshift, lval;
+
+// Newly protected mode
+cmd hlt, out, in;
+
+// Protected mode
+cmd umode, lload, lstore, scall, fmove, pclload, svmlow, svmhi, tload, tstore, trg;
 
 // Enumeration of instruction op codes
-typedef enum {
+enum {
     MOVE,   // Move
     EQ,     // Equality
     GT,     // Greater Than
@@ -67,63 +100,82 @@ typedef enum {
     LOAD,   // Load
     STORE,  // Store
     ADD,    // Add
-    SADD,   // Signed Add
     SUB,    // Subtract
-    SSUB,   // Signed Subtract
     MULT,   // Multiply
     SMULT,  // Signed Multiply
     DIVIDE, // Divide
-    SDIV,   // Signed Multiply
+    SDIV,   // Signed Divide
     AND,    // Bitwise And
     OR,     // Bitwise Or
     XOR,    // Bitwise Exclusive Or
     NOT,    // Bitwise Complement
+    LSHIFT, // Bitshift left
+    RSHIFT, // Bitshift right
     HLT,    // Halt
     OUT,    // Output
     IN,     // Input
-    LVAL    // Load Value
-} INSTR;
+    LVAL,   // Load Value
 
-// Registers
-mword reg[16];
+    // Protected instructions
+    UMODE,  // Enter user mode
+    LLOAD,  // Lookaside load
+    LSTORE, // Lookaside store
+    SCALL,  // Set callback
+    FMOVE,  // Fault move
+    PCLLOAD,// PC Lookaside load
+    SVMLOW, // Set virtual memory low
+    SVMHI,  // Set virtual memory high
+    TLOAD,  // PC Timer load
+    TSTORE, // PC Timer store
+    TRG     // Trigger
+};
 
-// Program counter
-mword ctr = 0;
-
-// Memory
-mword *memory = NULL;
-mword memory_size = 0;
+// Fault codes
+enum {
+    INSTR_FAULT,    // Protected instruction
+    TRG_FAULT,      // Trigger
+    TIME_FAULT,     // Decremented program counter time too far
+    VM_FAULT,       // Accessed memory outside of set virtual memory
+    VM_EXEC_FAULT,  // Executed an instruction outside of set virtual memory
+    WORD_FAULT,     // Invalid instruction word
+    DIV_ZERO_FAULT  // Divided by zero
+};
 
 state runMachine(unsigned char *bin, uint32_t len) {
-    state ret = loadMachine(bin, len);
-    if (ret != RUN) {
-        cleanup();
-        return ret;
+    machine m;
+    loadMachine(&m, bin, len);
+    if (m.state != RUN) {
+        cleanup(&m);
+        return m.state;
     }
-    ret = runner();
-    cleanup();
-    return ret;
+    runner(&m);
+    cleanup(&m);
+    return m.state;
 }
 
 // Return relevant error, or RUN upon success
-state loadMachine(unsigned char *bin, mword len) {
+void loadMachine(machine *m, unsigned char *bin, mword len) {
     
-    memory_size = bin[0];
-    memory_size <<= 8;
-    memory_size |= bin[1];
-    memory_size <<= 8;
-    memory_size |= bin[2];
-    memory_size <<= 8;
-    memory_size |= bin[3];
+    m->memory_size = bin[0];
+    m->memory_size <<= 8;
+    m->memory_size |= bin[1];
+    m->memory_size <<= 8;
+    m->memory_size |= bin[2];
+    m->memory_size <<= 8;
+    m->memory_size |= bin[3];
     
-    if ((memory_size * 4) < (len - 4))
-        return FAIL;
+    if ((m->memory_size * 4) < (len - 4)) {
+        m->state = FAIL;
+        return;
+    }
     
     // Use calloc so memory is zero'd
-    memory = (mword*)calloc(memory_size, sizeof(*memory));
+    m->memory = (mword*)calloc(m->memory_size, sizeof(*(m->memory)));
     
-    if (memory == NULL)
-        return MEM;
+    if (m->memory == NULL) {
+        m->state = MEM;
+        return;
+    }
     
     unsigned char *b = bin + 4;
     mword newWord;
@@ -139,279 +191,463 @@ state loadMachine(unsigned char *bin, mword len) {
         newWord <<= 8;
         newWord |= *b;
         b++;
-        memory[i] = newWord;
+        m->memory[i] = newWord;
     }
     
-    // Zero out registers
-    memset(reg, 0, sizeof(*reg) * 16);
-    ctr = 0;
-    
-    return RUN;
+    // Zero out m->registers
+    memset(m->reg, 0, sizeof(*(m->reg)) * 16);
+    m->ctr = 0;
+    m->state = RUN;
 }
 
-void cleanup() {
-    if (memory != NULL)
-        free(memory);
+void cleanup(machine *m) {
+    if (m->memory != NULL)
+        free(m->memory);
 }
 
-state runner() {
+void runner(machine *m) {
     while (1) {
-        if (ctr >= memory_size)
-            return FAIL;
-        
+        if (m->protected) {
+            if (m->ctr >= m->memory_size) {
+                m->state = FAIL;
+                return;
+            }
+        } else {
+            if (m->ctr < m->vlow || m->ctr > m->vhigh) {
+                fault(m, VM_EXEC_FAULT);
+                continue;
+            }
+        }
+
+        // Grab the instruction word before
+        // we increment the counter.
         instruction instr;
-        instr.word = memory[ctr];
+        instr.word = m->memory[m->ctr];
         
         // Increment counter before running instruction
         // in case the instruction is a load program
-        ctr++;
-        state st = runCmd(instr);
-        if (st != RUN)
-            return st;
+        m->ctr++;
+        if (!m->protected) {
+            // Decrement and then check because
+            // fault increments.
+            m->timer--;
+            if (m->timer == MAX_MWORD) {
+                fault(m, TIME_FAULT);
+                continue;
+            }
+        }
+        m->state = runCmd(m, instr);
+        if (m->state != RUN)
+            return;
     }
     
     // Should return from inside while loop
-    return INTERN;
+    m->state = INTERN;
 }
 
-state runCmd(instruction instr) {
+void fault(machine *m, mword fcode) {
+    // Since the runner decrements timer every time,
+    // but timer is logically not decremented in the
+    // event of a fault, correct that.
+    m->timer++;
+
+    memcpy(m->lreg, m->reg, sizeof(*(m->reg)) * 16);
+    // TODO: Set fault register
+
+    // Since the runner preemptively increments
+    // the program counter, make sure to correct
+    // for that.
+    m->lctr = m->ctr - 1;
+    m->fault = fcode;
+    m->protected = true;
+    m->ctr = m->callback;
+}
+
+state runCmd(machine *m, instruction instr) {
     switch (instr.fields.op) {
         case MOVE:
-            return move(instr);
+            return move(m, instr);
         case EQ:
-            return eq(instr);
+            return eq(m, instr);
         case GT:
-            return gt(instr);
+            return gt(m, instr);
         case SGT:
-            return sgt(instr);
+            return sgt(m, instr);
         case LT:
-            return lt(instr);
+            return lt(m, instr);
         case SLT:
-            return slt(instr);
+            return slt(m, instr);
         case CJMP:
-            return cjmp(instr);
+            return cjmp(m, instr);
         case LOAD:
-            return load(instr);
+            return load(m, instr);
         case STORE:
-            return store(instr);
+            return store(m, instr);
         case ADD:
-            return add(instr);
-        case SADD:
-            return sadd(instr);
+            return add(m, instr);
         case SUB:
-            return sub(instr);
-        case SSUB:
-            return ssub(instr);
+            return sub(m, instr);
         case MULT:
-            return mult(instr);
+            return mult(m, instr);
         case SMULT:
-            return smult(instr);
+            return smult(m, instr);
         case DIVIDE:
-            return divide(instr);
+            return divide(m, instr);
         case SDIV:
-            return sdivide(instr);
+            return sdivide(m, instr);
         case AND:
-            return and(instr);
+            return and(m, instr);
         case OR:
-            return or(instr);
+            return or(m, instr);
         case XOR:
-            return xor(instr);
+            return xor(m, instr);
         case NOT:
-            return not(instr);
+            return not(m, instr);
         case HLT:
-            return hlt(instr);
+            return hlt(m, instr);
         case OUT:
-            return out(instr);
+            return out(m, instr);
         case IN:
-            return in(instr);
+            return in(m, instr);
         case LVAL:
-            return lval(instr);
+            return lval(m, instr);
+        case UMODE:
+            return umode(m, instr);
+        case LLOAD:
+            return lload(m, instr);
+        case LSTORE:
+            return lstore(m, instr);
+        case SCALL:
+            return scall(m, instr);
+        case FMOVE:
+            return fmove(m, instr);
+        case PCLLOAD:
+            return pclload(m, instr);
+        case SVMLOW:
+            return svmlow(m, instr);
+        case SVMHI:
+            return svmhi(m, instr);
+        case TLOAD:
+            return tload(m, instr);
+        case TSTORE:
+            return tstore(m, instr);
+        case TRG:
+            return trg(m, instr);
     }
-    return FAIL;
-}
-
-state move(instruction instr) {
-    reg[instr.fields.a] = reg[instr.fields.b];
+    if (m->protected)
+        return FAIL;
+    fault(m, WORD_FAULT);
     return RUN;
 }
 
-state eq(instruction instr) {
-    reg[instr.fields.a] = reg[instr.fields.b] == reg[instr.fields.c];
+state move(machine *m, instruction instr) {
+    m->reg[instr.fields.a] = m->reg[instr.fields.b];
     return RUN;
 }
 
-state gt(instruction instr) {
-    reg[instr.fields.a] = reg[instr.fields.b] > reg[instr.fields.c];
+state eq(machine *m, instruction instr) {
+    m->reg[instr.fields.a] = m->reg[instr.fields.b] == m->reg[instr.fields.c];
     return RUN;
 }
 
-state sgt(instruction instr) {
+state gt(machine *m, instruction instr) {
+    m->reg[instr.fields.a] = m->reg[instr.fields.b] > m->reg[instr.fields.c];
+    return RUN;
+}
+
+state sgt(machine *m, instruction instr) {
     signConverter b, c;
-    b.unsign = reg[instr.fields.b];
-    c.unsign = reg[instr.fields.c];
+    b.unsign = m->reg[instr.fields.b];
+    c.unsign = m->reg[instr.fields.c];
     
-    reg[instr.fields.a] = b.sign > c.sign;
+    m->reg[instr.fields.a] = b.sign > c.sign;
     return RUN;
 }
 
-state lt(instruction instr) {
-    reg[instr.fields.a] = reg[instr.fields.b] < reg[instr.fields.c];
+state lt(machine *m, instruction instr) {
+    m->reg[instr.fields.a] = m->reg[instr.fields.b] < m->reg[instr.fields.c];
     return RUN;
 }
 
-state slt(instruction instr) {
+state slt(machine *m, instruction instr) {
     signConverter b, c;
-    b.unsign = reg[instr.fields.b];
-    c.unsign = reg[instr.fields.c];
+    b.unsign = m->reg[instr.fields.b];
+    c.unsign = m->reg[instr.fields.c];
     
-    reg[instr.fields.a] = b.sign < c.sign;
+    m->reg[instr.fields.a] = b.sign < c.sign;
     return RUN;
 }
 
-state cjmp(instruction instr) {
-    if (reg[instr.fields.a]) {
-        ctr = reg[instr.fields.b];
+state cjmp(machine *m, instruction instr) {
+    if (m->reg[instr.fields.a]) {
+        m->ctr = m->reg[instr.fields.b];
     }
     return RUN;
 }
 
-state load(instruction instr) {
-    if (reg[instr.fields.b] >= memory_size)
-        return FAIL;
-    reg[instr.fields.a] = memory[reg[instr.fields.b]];
+state load(machine *m, instruction instr) {
+    if (m->protected) {
+        if (m->reg[instr.fields.b] >= m->memory_size)
+            return FAIL;
+    } else {
+        if (m->reg[instr.fields.b] < m->vlow || m->reg[instr.fields.b] > m->vhigh) {
+            fault(m, VM_FAULT);
+            return RUN;
+        }
+    }
+
+    m->reg[instr.fields.a] = m->memory[m->reg[instr.fields.b]];
     return RUN;
 }
 
-state store(instruction instr) {
-    if (reg[instr.fields.a] >= memory_size)
-        return FAIL;
-    memory[reg[instr.fields.a]] = reg[instr.fields.b];
+state store(machine *m, instruction instr) {
+    if (m->protected) {
+        if (m->reg[instr.fields.b] >= m->memory_size)
+            return FAIL;
+    } else {
+        if (m->reg[instr.fields.b] < m->vlow || m->reg[instr.fields.b] > m->vhigh) {
+            fault(m, VM_FAULT);
+            return RUN;
+        }
+    }
+
+    m->memory[m->reg[instr.fields.a]] = m->reg[instr.fields.b];
     return RUN;
 }
 
-state add(instruction instr) {
-    reg[instr.fields.a] = reg[instr.fields.b] + reg[instr.fields.c];
+state add(machine *m, instruction instr) {
+    m->reg[instr.fields.a] = m->reg[instr.fields.b] + m->reg[instr.fields.c];
     return RUN;
 }
 
-state sadd(instruction instr) {
+state sub(machine *m, instruction instr) {
+    m->reg[instr.fields.a] = m->reg[instr.fields.b] - m->reg[instr.fields.c];
+    return RUN;
+}
+
+state mult(machine *m, instruction instr) {
+    m->reg[instr.fields.a] = m->reg[instr.fields.b] * m->reg[instr.fields.c];
+    return RUN;
+}
+
+state smult(machine *m, instruction instr) {
     signConverter a, b, c;
-    a.unsign = reg[instr.fields.a];
-    b.unsign = reg[instr.fields.b];
-    c.unsign = reg[instr.fields.c];
-    
-    a.sign = b.sign + c.sign;
-    
-    reg[instr.fields.a] = a.unsign;
-    reg[instr.fields.b] = b.unsign;
-    reg[instr.fields.c] = c.unsign;
-    return RUN;
-}
-
-state sub(instruction instr) {
-    reg[instr.fields.a] = reg[instr.fields.b] - reg[instr.fields.c];
-    return RUN;
-}
-
-state ssub(instruction instr) {
-    signConverter a, b, c;
-    a.unsign = reg[instr.fields.a];
-    b.unsign = reg[instr.fields.b];
-    c.unsign = reg[instr.fields.c];
-    
-    a.sign = b.sign + c.sign;
-    
-    reg[instr.fields.a] = a.unsign;
-    reg[instr.fields.b] = b.unsign;
-    reg[instr.fields.c] = c.unsign;
-    return RUN;
-}
-
-state mult(instruction instr) {
-    reg[instr.fields.a] = reg[instr.fields.b] * reg[instr.fields.c];
-    return RUN;
-}
-
-state smult(instruction instr) {
-    signConverter a, b, c;
-    a.unsign = reg[instr.fields.a];
-    b.unsign = reg[instr.fields.b];
-    c.unsign = reg[instr.fields.c];
+    a.unsign = m->reg[instr.fields.a];
+    b.unsign = m->reg[instr.fields.b];
+    c.unsign = m->reg[instr.fields.c];
     
     a.sign = b.sign * c.sign;
     
-    reg[instr.fields.a] = a.unsign;
-    reg[instr.fields.b] = b.unsign;
-    reg[instr.fields.c] = c.unsign;
+    m->reg[instr.fields.a] = a.unsign;
+    m->reg[instr.fields.b] = b.unsign;
+    m->reg[instr.fields.c] = c.unsign;
     return RUN;
 }
 
-state divide(instruction instr) {
-    if (reg[instr.fields.c] == 0)
-        return FAIL;
-    reg[instr.fields.a] = reg[instr.fields.b] / reg[instr.fields.c];
+state divide(machine *m, instruction instr) {
+    if (m->protected) {
+        if (m->reg[instr.fields.c] == 0)
+            return FAIL;;
+    } else {
+        if (m->reg[instr.fields.c] == 0) {
+            fault(m, DIV_ZERO_FAULT);
+            return RUN;
+        }
+    }
+
+    m->reg[instr.fields.a] = m->reg[instr.fields.b] / m->reg[instr.fields.c];
     return RUN;
 }
 
-state sdivide(instruction instr) {
-    if (reg[instr.fields.c] == 0)
-        return FAIL;
+state sdivide(machine *m, instruction instr) {
+    if (m->protected) {
+        if (m->reg[instr.fields.c] == 0)
+            return FAIL;;
+    } else {
+        if (m->reg[instr.fields.c] == 0) {
+            fault(m, DIV_ZERO_FAULT);
+            return RUN;
+        }
+    }
     
     signConverter a, b, c;
-    a.unsign = reg[instr.fields.a];
-    b.unsign = reg[instr.fields.b];
-    c.unsign = reg[instr.fields.c];
+    a.unsign = m->reg[instr.fields.a];
+    b.unsign = m->reg[instr.fields.b];
+    c.unsign = m->reg[instr.fields.c];
     
     a.sign = b.sign / c.sign;
     
-    reg[instr.fields.a] = a.unsign;
-    reg[instr.fields.b] = b.unsign;
-    reg[instr.fields.c] = c.unsign;
+    m->reg[instr.fields.a] = a.unsign;
+    m->reg[instr.fields.b] = b.unsign;
+    m->reg[instr.fields.c] = c.unsign;
     return RUN;
 }
 
-state and(instruction instr) {
-    reg[instr.fields.a] = reg[instr.fields.b] & reg[instr.fields.c];
+state and(machine *m, instruction instr) {
+    m->reg[instr.fields.a] = m->reg[instr.fields.b] & m->reg[instr.fields.c];
     return RUN;
 }
 
-state or(instruction instr) {
-    reg[instr.fields.a] = reg[instr.fields.b] | reg[instr.fields.c];
+state or(machine *m, instruction instr) {
+    m->reg[instr.fields.a] = m->reg[instr.fields.b] | m->reg[instr.fields.c];
     return RUN;
 }
 
-state xor(instruction instr) {
-    reg[instr.fields.a] = reg[instr.fields.b] ^ reg[instr.fields.c];
+state xor(machine *m, instruction instr) {
+    m->reg[instr.fields.a] = m->reg[instr.fields.b] ^ m->reg[instr.fields.c];
     return RUN;
 }
 
-state not(instruction instr) {
-    reg[instr.fields.a] = ~reg[instr.fields.b];
+state not(machine *m, instruction instr) {
+    m->reg[instr.fields.a] = ~m->reg[instr.fields.b];
     return RUN;
 }
 
-state hlt(instruction instr) {
+state lshift(machine *m, instruction instr) {
+    m->reg[instr.fields.a] = m->reg[instr.fields.b] << m->reg[instr.fields.c];
+    return RUN;
+}
+
+state rshift(machine *m, instruction instr) {
+    m->reg[instr.fields.a] = m->reg[instr.fields.b] >> m->reg[instr.fields.c];
+    return RUN;
+}
+
+state hlt(machine *m, instruction instr) {
+    if (!m->protected) {
+        fault(m, INSTR_FAULT);
+        return RUN;
+    }
     (void)instr;
     return HALT;
 }
 
-state out(instruction instr) {
-    if (reg[instr.fields.a] > 255)
+state out(machine *m, instruction instr) {
+    if (!m->protected) {
+        fault(m, INSTR_FAULT);
+        return RUN;
+    }
+
+    if (m->reg[instr.fields.a] > 255)
         return FAIL;
-    fprintf(stdout, "%c", reg[instr.fields.a]);
+    fprintf(stdout, "%c", m->reg[instr.fields.a]);
     return RUN;
 }
 
-state in(instruction instr) {
+state in(machine *m, instruction instr) {
+    if (!m->protected) {
+        fault(m, INSTR_FAULT);
+        return RUN;
+    }
+
     int c = getc(stdin);
     if (c == EOF)
-        reg[instr.fields.a] = MAX_MWORD;
+        m->reg[instr.fields.a] = MAX_MWORD;
     else
-        reg[instr.fields.a] = c;
+        m->reg[instr.fields.a] = c;
     return RUN;
 }
 
-state lval(instruction instr) {
-    reg[instr.loadValueFields.a] = instr.loadValueFields.val;
+state lval(machine *m, instruction instr) {
+    m->reg[instr.loadValueFields.a] = instr.loadValueFields.val;
+    return RUN;
+}
+
+state umode(machine *m, instruction instr) {
+    if (!m->protected) {
+        fault(m, INSTR_FAULT);
+        return RUN;
+    }
+    m->ctr = m->reg[instr.fields.a];
+    memcpy(m->reg, m->lreg, sizeof(*(m->reg)) * 16);
+    return RUN;
+}
+
+state lload(machine *m, instruction instr) {
+    if (!m->protected) {
+        fault(m, INSTR_FAULT);
+        return RUN;
+    }
+    m->reg[instr.fields.a] = m->lreg[instr.fields.b];
+    return RUN;
+}
+
+state lstore(machine *m, instruction instr) {
+    if (!m->protected) {
+        fault(m, INSTR_FAULT);
+        return RUN;
+    }
+    m->lreg[instr.fields.a] = m->reg[instr.fields.b];
+    return RUN;
+}
+
+state scall(machine *m, instruction instr) {
+    if (!m->protected) {
+        fault(m, INSTR_FAULT);
+        return RUN;
+    }
+    m->callback = m->reg[instr.fields.a];
+    return RUN;
+}
+
+state fmove(machine *m, instruction instr) {
+    if (!m->protected) {
+        fault(m, INSTR_FAULT);
+        return RUN;
+    }
+    m->reg[instr.fields.a] = m->fault;
+    return RUN;
+}
+
+state pclload(machine *m, instruction instr) {
+    if (!m->protected) {
+        fault(m, INSTR_FAULT);
+        return RUN;
+    }
+    m->reg[instr.fields.a] = m->lctr;
+    return RUN;
+}
+
+state svmlow(machine *m, instruction instr) {
+    if (!m->protected) {
+        fault(m, INSTR_FAULT);
+        return RUN;
+    }
+    m->vlow = m->reg[instr.fields.a];
+    return RUN;
+}
+
+state svmhi(machine *m, instruction instr) {
+    if (!m->protected) {
+        fault(m, INSTR_FAULT);
+        return RUN;
+    }
+    m->vhigh = m->reg[instr.fields.a];
+    return RUN;
+}
+
+state tload(machine *m, instruction instr) {
+    if (!m->protected) {
+        fault(m, INSTR_FAULT);
+        return RUN;
+    }
+    m->reg[instr.fields.a] = m->timer;
+    return RUN;
+}
+
+state tstore(machine *m, instruction instr) {
+    if (!m->protected) {
+        fault(m, INSTR_FAULT);
+        return RUN;
+    }
+    m->timer = m->reg[instr.fields.a];
+    return RUN;
+}
+
+state trg(machine *m, instruction instr) {
+    if (!m->protected) {
+        fault(m, TRG_FAULT);
+        return RUN;
+    }
     return RUN;
 }

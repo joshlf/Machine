@@ -47,7 +47,7 @@ opcode                  B
 
 So, for example, if the opcode corresponded to the addition instruction, and A = 0, B = 1, C = 2, this would result in r[0] := r[1] + r[2].
 
-There are two versions of each of the arithmetic operators (addition, subtraction, multiplication, division), and of the greater than and less than comparison operators - unsigned and signed. The unsigned versions perform the operations assuming that the values in all registers are 32-bit unsigned integers. The signed versions perform the operations assuming that the values in all registers are 32-bit two's complement signed integers.
+There are two versions of the multiplication, division, greater than, less than, and comparison operators - unsigned and signed. The unsigned versions perform the operations assuming that the values in all registers are 320bit unsigned integers. The signed versions perform the operations assuming that the values in all registers are 32-bit two's complement signed integers. There is no signed add or signed subtract instruction because unsigned addition and unsigned subtraction also work on signed values.
 
 ###Instruction Semantics
 
@@ -86,37 +86,37 @@ There are two versions of each of the arithmetic operators (addition, subtractio
 		<td>9</td><td>Add</td><td>r[A] := r[B] + r[C]</td>
 	</tr>
 	<tr>
-		<td>10</td><td>Add (signed)</td><td>r[A] := r[B] + r[C]</td>
+		<td>10</td><td>Subtract</td><td>r[A] := r[B] - r[C]</td>
 	</tr>
 	<tr>
-		<td>11</td><td>Subtract</td><td>r[A] := r[B] - r[C]</td>
+		<td>11</td><td>Multiply</td><td>r[A] := r[B] * r[C]</td>
 	</tr>
 	<tr>
-		<td>12</td><td>Subtract (signed)</td><td>r[A] := r[B] - r[C]</td>
+		<td>12</td><td>Multiply (signed)</td><td>r[A] := r[B] * r[C]</td>
 	</tr>
 	<tr>
-		<td>13</td><td>Multiply</td><td>r[A] := r[B] * r[C]</td>
+		<td>13</td><td>Divide</td><td>r[A] := r[B] / r[C]</td>
 	</tr>
 	<tr>
-		<td>14</td><td>Multiply (signed)</td><td>r[A] := r[B] * r[C]</td>
+		<td>14</td><td>Divide (signed)</td><td>r[A] := r[B] / r[C] (rounds towards 0)</td>
 	</tr>
 	<tr>
-		<td>15</td><td>Divide</td><td>r[A] := r[B] / r[C]</td>
+		<td>15</td><td>Bitwise And</td><td>r[A] := r[B] & r[C]</td>
 	</tr>
 	<tr>
-		<td>16</td><td>Divide (signed)</td><td>r[A] := r[B] / r[C] (rounds towards 0)</td>
+		<td>16</td><td>Bitwise Or</td><td>r[A] := r[B] | r[C]</td>
 	</tr>
 	<tr>
-		<td>17</td><td>Bitwise And</td><td>r[A] := r[B] & r[C]</td>
+		<td>17</td><td>Bitwise Exclusive Or</td><td>r[A] := r[B] ^ r[C]</td>
 	</tr>
 	<tr>
-		<td>18</td><td>Bitwise Or</td><td>r[A] := r[B] | r[C]</td>
+		<td>18</td><td>Bitwise Complement</td><td>r[A] := ~r[B]</td>
 	</tr>
 	<tr>
-		<td>19</td><td>Bitwise Exclusive Or</td><td>r[A] := r[B] ^ r[C]</td>
+		<td>19</td><td>Left shift</td><td>r[A] := r[B] &lt;&lt; r[C]</td>
 	</tr>
 	<tr>
-		<td>20</td><td>Bitwise Complement</td><td>r[A] := ~r[B]</td>
+		<td>20</td><td>Right Shift</td><td>r[A] := r[B] &gt;&gt; r[C]</td>
 	</tr>
 	<tr>
 		<td>21</td><td>Halt</td><td>Halt the machine</td>
