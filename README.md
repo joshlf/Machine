@@ -7,10 +7,12 @@ license that can be found in the LICENSE file.
 Machine
 =======
 
-An emulator for computer with a simple architecture and instruction set
+An emulator for computer with a simple architecture and instruction set.
 
 ##Overview
 Machine emulates a computer with a simple memory architecture and small instruction set. It is intended to be used in an educational or research setting, allowing binaries to be run universally and without concern for physical architecture. It is written primarily for my own use in testing new compiler or assembler features, but I would be thrilled if others got use out of it as well. If you have suggested changes or bugs, please let me know!
+
+There are two overall pieces to Machine. The first is a fully-functioning architecture and instruction set that programs wishing to run directly in Machine should use. The second is a set of architecture and instruction set extensions that add support for a protected mode/user mode distinction, which allows kernels to be written for Machine. These extensions are fully backwards-compatible with the normal subset, and any programs written without knowledge of these extensions will run without issue. Note that there's only one version of Machine - the version that includes the extensions - but programs may treat Machine as though it logically only implemented the normal subset.
 
 ##Architecture
 Machine is a 32-bit architecture. It comprises three simple components - memory, registers, and a program counter.
@@ -113,7 +115,7 @@ There are two versions of the multiplication, division, greater than, less than,
 		<td>18</td><td>Bitwise Complement</td><td>r[A] := ~r[B]</td>
 	</tr>
 	<tr>
-		<td>19</td><td>Left shift</td><td>r[A] := r[B] &lt;&lt; r[C]</td>
+		<td>19</td><td>Left Shift</td><td>r[A] := r[B] &lt;&lt; r[C]</td>
 	</tr>
 	<tr>
 		<td>20</td><td>Right Shift</td><td>r[A] := r[B] &gt;&gt; r[C]</td>
@@ -133,7 +135,7 @@ There are two versions of the multiplication, division, greater than, less than,
 </table>
 
 ###Load Value
-The load value instruction loads a literal value which is encoded in the instruction word itself. The layout of a load value word differs from a normal instruction word since it must encode a literal value as well as the register addresses. When a load value instruction is executed, the value is loaded into r[A]. The opcode is coded in the most significant six bits. The register address, A, is coded in the next four bits. The value itself is coded in the remaining 22 bits.
+The *Load Value* instruction loads a literal value which is encoded in the instruction word itself. The layout of a load value word differs from a normal instruction word since it must encode a literal value as well as the register addresses. When a *Load Value* instruction is executed, the value is loaded into r[A]. The opcode is coded in the most significant six bits. The register address, A, is coded in the next four bits. The value itself is coded in the remaining 22 bits.
 
 <pre>
          A
@@ -151,6 +153,116 @@ During normal operation, the machine moves from one state to the next with the e
 * If an instructions loads from or stores to a word which is not part of allocated memory, the machine will fail.
 * If an instruction outputs a value not in the range [0,255], the machine will fail.
 * If there are more instructions in a binary (exluding the first word) than there are words allocated in memory, the machine will fail.
+
+
+Protected Mode Extensions
+=========================
+
+In addition to the features detailed above, referred to from here on out as the *normal subset*, there is a set of extensions known as the *protected mode extensions* which make it possible for Machine to support a fully-functioning kernel with the ability to guarantee memory safety, process termination, and multithreading.
+
+##Architecture
+The protected mode extensions provide modes, lookaside registers, a callback register, a fault register, a program counter lookaside register, two virtual memory registers, and a program counter timer.
+
+###Modes
+Machine can be in two modes - *protected mode* and *user mode*. At the beginning of execution, Machine is in protected mode.
+
+###Lookaside Registers
+There are 16 extra registers called *lookaside registers*, denoted r'. When any illegal operation (defined below) is performed while Machine is in user mode, the contents of the registers are copied into the lookaside registers (that is, for x in [0,15], r'[x] := r[x]).
+
+###Fault Register
+There is a single register called the *fault register*, denoted f. The contents of f are denoted f[]. When any illegal operation is performed in user mode, the *fault code* of the operation (defined below) is paced into f. The order of this relative to the setting of the lookaside registers is undefined.
+
+###Program Counter Lookaside Register
+There is a single register called the *program counter lookaside register*, denoted pc'. The contents of pc' are denoted pc'[]. When any illegal operation is performed in user mode, the value of the program counter prior to the execution of the illegal instruction is placed into pc'[]. The order of this relative to the setting of the lookaside and fault registers is undefined.
+
+###Program Counter Timer
+There is a single register called the *program counter timer*, denoted t. The contents of t are denoted t[]. Prior to the execution of any instruction in user mode, t is decremented (t[] := t[] - 1). If, prior to this, t[] = 0, then instead of t being decremented, it is considered an illegal operation, and a fault is triggered. Additionally, if execution of the instruction causes any other fault, t is not decremented.
+
+###Callback Register
+There is a single register called the *callback register*, denoted c. The contents of c are denoted c[]. When any illegal operation is performed in user mode, after the lookaside registers, fault register, and program counter lookaside register have been set, Machine is placed into protected mode, and execution continues from c[].
+
+###Virtual Memory Registers
+There is a pair of registers called *virtual memory registers*, denoted v (v[0] and v[1]). When a memory access operation is performed in user mode, the physical address, p, that is accessed is defined in relation to the logical address, l, that is coded by the instruction word, by the relation p = v[0] + l. If p < v[0] or p > v[1], this is an illegal operation and will trigger a fault.
+
+##Instructions
+The protected mode extensions include 11 additional instructions known as *protected instructions*. Executing any of these instructions in user mode is an illegal operation, and will trigger a fault.
+
+###Instruction semantics
+<table>
+	<tr>
+		<td><b>Opcode</b></td><td><b>Name</b></td><td><b>Description</b></td>
+	</tr>
+	<tr>
+		<td>25</td><td>Enter User Mode</td><td>Machine is placed into user mode, the program counter is set to r[A], all registers are set such that r[X] := r'[X], and execution is continued</td>
+  	</tr>
+	<tr>
+		<td>26</td><td>Lookaside Load</td><td>r[A] := r'[B]</td>
+  	</tr>
+	<tr>
+		<td>27</td><td>Lookaside Store</td><td>r'[A] := r[B]</td>
+  	</tr>
+	<tr>
+		<td>28</td><td>Set Callback</td><td>c[] := r[A]</td>
+  	</tr>
+	<tr>
+		<td>29</td><td>Fault Load</td><td>r[A] := f[]</td>
+  	</tr>
+	<tr>
+		<td>30</td><td>PC Lookaside Load</td><td>r[A] := pc'[]</td>
+  	</tr>
+	<tr>
+		<td>31</td><td>Set Virtual Memory Low</td><td>v[0] := r[A]</td>
+  	</tr>
+	<tr>
+		<td>32</td><td>Set Virtual Memory High</td><td>v[1] := r[A]</td>
+  	</tr>
+	<tr>
+		<td>33</td><td>PC Timer Load</td><td>r[A] := t[]</td>
+  	</tr>
+	<tr>
+		<td>34</td><td>PC Timer Store</td><td>t[] := r[A]</td>
+  	</tr>
+	<tr>
+		<td>36</td><td>Trigger</td><td>do nothing (still triggers fault in user mode)</td>
+  	</tr>
+</table>
+
+Additionally, the *Halt* (opcode 21), *Output* (opcode 22), and *Input* (opcode 23) instructions are considered illegal operations if executed in user mode, and will trigger a fault.
+
+##Failure States
+The protected mode extensions include two extra failure states.
+* If the *Enter User Mode* instruction is executed when v[0] + r[A] does not address a word in the range [v[0], v[1]], Machine will fail.
+* If the *Set Virtual Memory Low* or *Set Virtual Memory High* instructions are executed when r[A] does not address a word in allocated memory, Machine will fail.
+
+##Fault Codes
+Whenever a fault is triggered, there is an associated *fault code* which is placed into the fault register, f, which describes the fault. This is a list of faults and associated fault codes. Note that every action which would cause Machine to enter a failure state in protected mode triggers a fault if performed in user mode. Thus, it is not possible for code executing in user mode to cause Machine to enter a failure state.
+
+<table>
+	<tr>
+		<td><b>Fault Code</b></td><td><b>Fault</b></td>
+	</tr>
+	<tr>
+		<td>0</td><td>Executing a protected instruction other than Trigger</td>
+	</tr>
+	<tr>
+		<td>1</td><td>Executing Trigger</td>
+	</tr>
+	<tr>
+		<td>2</td><td>Executing an instruction which would decrement the program counter timer below 0</td>
+	</tr>
+	<tr>
+		<td>3</td><td>Executing an instruction whose address is not in [v[0], v[1]]</td>
+	</tr>
+	<tr>
+		<td>4</td><td>Accessing a memory word whose address is not in [v[0], v[1]]</td>
+	</tr>
+	<tr>
+		<td>5</td><td>Executing an instruction which does not code for a valid operation</td>
+	</tr>
+	<tr>
+		<td>6</td><td>Division by 0</td>
+	</tr>
+</table>
 
 ##Building
 To build Machine, simply do:
