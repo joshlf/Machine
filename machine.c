@@ -206,13 +206,16 @@ void cleanup(machine *m) {
 
 void runner(machine *m) {
     while (1) {
+        mword ctr;
         if (m->protected) {
-            if (m->ctr >= m->memory_size) {
+            ctr = m->ctr;
+            if (ctr >= m->memory_size) {
                 m->state = FAIL;
                 return;
             }
         } else {
-            if (m->ctr < m->vlow || m->ctr > m->vhigh) {
+            ctr = m->vlow + m->ctr;
+            if (ctr < m->vlow || ctr > m->vhigh) {
                 fault(m, VM_EXEC_FAULT);
                 continue;
             }
@@ -221,7 +224,7 @@ void runner(machine *m) {
         // Grab the instruction word before
         // we increment the counter.
         instruction instr;
-        instr.word = m->memory[m->ctr];
+        instr.word = m->memory[ctr];
         
         // Increment counter before running instruction
         // in case the instruction is a load program
@@ -393,33 +396,45 @@ state cjmp(machine *m, instruction instr) {
 
 // Load
 state load(machine *m, instruction instr) {
+    mword addr;
     if (m->protected) {
-        if (m->reg[instr.fields.b] >= m->memory_size)
+        addr = m->reg[instr.fields.b];
+        if (addr >= m->memory_size)
             return FAIL;
+        
     } else {
-        if (m->reg[instr.fields.b] < m->vlow || m->reg[instr.fields.b] > m->vhigh) {
+        addr = m->vlow + m->reg[instr.fields.b];
+        // Check addr < m->vlow because the addition
+        // could wrap around
+        if (addr < m->vlow || addr > m->vhigh) {
             fault(m, VM_FAULT);
             return RUN;
         }
     }
 
-    m->reg[instr.fields.a] = m->memory[m->reg[instr.fields.b]];
+    m->reg[instr.fields.a] = m->memory[addr];
     return RUN;
 }
 
 // Store
 state store(machine *m, instruction instr) {
+    mword addr;
     if (m->protected) {
-        if (m->reg[instr.fields.b] >= m->memory_size)
+        addr = m->reg[instr.fields.a];
+        if (addr >= m->memory_size)
             return FAIL;
+        
     } else {
-        if (m->reg[instr.fields.b] < m->vlow || m->reg[instr.fields.b] > m->vhigh) {
+        addr = m->vlow + m->reg[instr.fields.a];
+        // Check addr < m->vlow because the addition
+        // could wrap around
+        if (addr < m->vlow || addr > m->vhigh) {
             fault(m, VM_FAULT);
             return RUN;
         }
     }
 
-    m->memory[m->reg[instr.fields.a]] = m->reg[instr.fields.b];
+    m->memory[addr] = m->reg[instr.fields.b];
     return RUN;
 }
 
