@@ -229,7 +229,7 @@ void runner(machine *m) {
         // Increment counter before running instruction
         // in case the instruction is a load program
         m->ctr++;
-        if (!m->protected) {
+        if (!m->protected && m->timer != MAX_MWORD) {
             // Decrement and then check because
             // fault increments.
             m->timer--;
