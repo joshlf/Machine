@@ -121,16 +121,22 @@ There are two versions of the multiplication, division, greater than, less than,
 		<td>20</td><td>Right Shift</td><td>r[A] := r[B] &gt;&gt; r[C]</td>
 	</tr>
 	<tr>
-		<td>21</td><td>Halt</td><td>Halt the machine</td>
+		<td>21</td><td>Compare And Swap</td><td>If m[r[A]] = r[B], m[r[A]] := r[C] and r[B] := 1; otherwise, r[B] := 0</td>
 	</tr>
 	<tr>
-		<td>22</td><td>Output</td><td>The value in r[A] is displayed on the I/O device (as ASCII). Only values in [0,255] allowed.</td>
+		<td>22</td><td>Atomic Add</td><td>m[r[A]] := m[r[A]] + r[B]</td>
 	</tr>
 	<tr>
-		<td>23</td><td>Input</td><td>Machine waits for input on the I/O device. Input is stored in r[A], which will be a value in [0,255]. If EOF was signaled, r[A] will be all 1's.</td>
+		<td>23</td><td>Halt</td><td>Halt the machine</td>
 	</tr>
 	<tr>
-		<td>24</td><td>Load Value</td><td>The value specified will be loaded into r[A] (see Load Value semantics below).</td>
+		<td>24</td><td>Output</td><td>The value in r[A] is displayed on the I/O device (as ASCII). Only values in [0,255] allowed.</td>
+	</tr>
+	<tr>
+		<td>25</td><td>Input</td><td>Machine waits for input on the I/O device. Input is stored in r[A], which will be a value in [0,255]. If EOF was signaled, r[A] will be all 1's.</td>
+	</tr>
+	<tr>
+		<td>26</td><td>Load Value</td><td>The value specified will be loaded into r[A] (see Load Value semantics below).</td>
 	</tr>
 </table>
 
@@ -147,6 +153,7 @@ opcode    value
 
 ##Failure States
 During normal operation, the machine moves from one state to the next with the execution of each instruction (a machine state in this case refers to the state of all of the registers and all of the words in memory). However, certain operations will result in the machine existing in an invalid state, or Failure State. If the machine moves into a failure state, execution will be halted. The following will result in failure states:
+
 * If the program counter refers to a word which is not part of allocated memory, the machine will fail.
 * If the program counter refers to a word which does not code for a valid instruction, the machine will fail.
 * If an instruction divides by zero, the machine will fail.
@@ -167,16 +174,16 @@ The protected mode extensions provide modes, lookaside registers, a callback reg
 Machine can be in two modes - *protected mode* and *user mode*. At the beginning of execution, Machine is in protected mode.
 
 ###Lookaside Registers
-There are 16 extra registers called *lookaside registers*, denoted r'. When any illegal operation (defined below) is performed while Machine is in user mode, the contents of the registers are copied into the lookaside registers (that is, for x in [0,15], r'[x] := r[x]).
+There are 16 extra registers called *lookaside registers*, denoted r'. When any illegal operation (defined below) is performed while Machine is in user mode, the contents of the registers are copied into the lookaside registers (that is, for x in [0, 15], r'[x] := r[x]).
 
 ###Fault Register
-There is a single register called the *fault register*, denoted f. The contents of f are denoted f[]. When any illegal operation is performed in user mode, the *fault code* of the operation (defined below) is paced into f. The order of this relative to the setting of the lookaside registers is undefined.
+There is a single register called the *fault register*, denoted f. The contents of f are denoted f[]. When any illegal operation is performed in user mode, the *fault code* of the operation (defined below) is placed into f. The order of this relative to the setting of the lookaside registers is undefined.
 
 ###Program Counter Lookaside Register
 There is a single register called the *program counter lookaside register*, denoted pc'. The contents of pc' are denoted pc'[]. When any illegal operation is performed in user mode, the value of the program counter prior to the execution of the illegal instruction is placed into pc'[]. The order of this relative to the setting of the lookaside and fault registers is undefined.
 
 ###Program Counter Timer
-There is a single register called the *program counter timer*, denoted t. The contents of t are denoted t[]. Prior to the execution of any instruction in user mode, t is decremented (t[] := t[] - 1). If, prior to this, t[] = 0, then instead of t being decremented, it is considered an illegal operation, and a fault is triggered. Additionally, if execution of the instruction causes any other fault, t is not decremented.
+There is a single register called the *program counter timer*, denoted t. The contents of t are denoted t[]. Prior to the execution of any instruction in user mode, if t is not the maximum possible value (that is, t[] + 1 != 0), t is decremented (t[] := t[] - 1). If, prior to this, t[] = 0, then instead of t being decremented, it is considered an illegal operation, and a fault is triggered. Additionally, if execution of the instruction causes any other fault, t is not decremented.
 
 ###Callback Register
 There is a single register called the *callback register*, denoted c. The contents of c are denoted c[]. When any illegal operation is performed in user mode, after the lookaside registers, fault register, and program counter lookaside register have been set, Machine is placed into protected mode, and execution continues from c[].
@@ -188,49 +195,51 @@ There is a pair of registers called *virtual memory registers*, denoted v (v[0] 
 The protected mode extensions include 11 additional instructions known as *protected instructions*. Executing any of these instructions in user mode is an illegal operation, and will trigger a fault.
 
 ###Instruction semantics
+
 <table>
 	<tr>
 		<td><b>Opcode</b></td><td><b>Name</b></td><td><b>Description</b></td>
 	</tr>
 	<tr>
-		<td>25</td><td>Enter User Mode</td><td>Machine is placed into user mode, the program counter is set to r[A], all registers are set such that r[X] := r'[X], and execution is continued</td>
+		<td>27</td><td>Enter User Mode</td><td>Machine is placed into user mode, the program counter is set to r[A], all registers are set such that r[X] := r'[X], and execution is continued</td>
   	</tr>
 	<tr>
-		<td>26</td><td>Lookaside Load</td><td>r[A] := r'[B]</td>
+		<td>28</td><td>Lookaside Load</td><td>r[A] := r'[B]</td>
   	</tr>
 	<tr>
-		<td>27</td><td>Lookaside Store</td><td>r'[A] := r[B]</td>
+		<td>29</td><td>Lookaside Store</td><td>r'[A] := r[B]</td>
   	</tr>
 	<tr>
-		<td>28</td><td>Set Callback</td><td>c[] := r[A]</td>
+		<td>30</td><td>Set Callback</td><td>c[] := r[A]</td>
   	</tr>
 	<tr>
-		<td>29</td><td>Fault Load</td><td>r[A] := f[]</td>
+		<td>31</td><td>Fault Load</td><td>r[A] := f[]</td>
   	</tr>
 	<tr>
-		<td>30</td><td>PC Lookaside Load</td><td>r[A] := pc'[]</td>
+		<td>32</td><td>PC Lookaside Load</td><td>r[A] := pc'[]</td>
   	</tr>
 	<tr>
-		<td>31</td><td>Set Virtual Memory Low</td><td>v[0] := r[A]</td>
+		<td>33</td><td>Set Virtual Memory Low</td><td>v[0] := r[A]</td>
   	</tr>
 	<tr>
-		<td>32</td><td>Set Virtual Memory High</td><td>v[1] := r[A]</td>
+		<td>34</td><td>Set Virtual Memory High</td><td>v[1] := r[A]</td>
   	</tr>
 	<tr>
-		<td>33</td><td>PC Timer Load</td><td>r[A] := t[]</td>
+		<td>35</td><td>PC Timer Load</td><td>r[A] := t[]</td>
   	</tr>
 	<tr>
-		<td>34</td><td>PC Timer Store</td><td>t[] := r[A]</td>
+		<td>36</td><td>PC Timer Store</td><td>t[] := r[A]</td>
   	</tr>
 	<tr>
-		<td>36</td><td>Trigger</td><td>do nothing (still triggers fault in user mode)</td>
+		<td>37</td><td>Trigger</td><td>do nothing (still triggers fault in user mode)</td>
   	</tr>
 </table>
 
-Additionally, the *Halt* (opcode 21), *Output* (opcode 22), and *Input* (opcode 23) instructions are considered illegal operations if executed in user mode, and will trigger a fault.
+Additionally, the *Halt* (opcode 23), *Output* (opcode 24), and *Input* (opcode 25) instructions are considered illegal operations if executed in user mode, and will trigger a fault.
 
 ##Failure States
 The protected mode extensions include two extra failure states.
+
 * If the *Enter User Mode* instruction is executed when v[0] + r[A] does not address a word in the range [v[0], v[1]], Machine will fail.
 * If the *Set Virtual Memory Low* or *Set Virtual Memory High* instructions are executed when r[A] does not address a word in allocated memory, Machine will fail.
 

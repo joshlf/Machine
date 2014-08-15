@@ -80,7 +80,7 @@ cmd runCmd;
 // so the naming convention must be broken with "divide" and "sdivide"
 
 // User mode
-cmd move, eq, gt, sgt, lt, slt, cjmp, load, store, add, sadd, sub, ssub, mult, smult, divide, sdivide, and, or, xor, not, lshift, rshift, lval;
+cmd move, eq, gt, sgt, lt, slt, cjmp, load, store, add, sadd, sub, ssub, mult, smult, divide, sdivide, and, or, xor, not, lshift, rshift, cas, aadd, lval;
 
 // Newly protected mode
 cmd hlt, out, in;
@@ -111,6 +111,8 @@ enum {
     NOT,    // Bitwise Complement
     LSHIFT, // Bitshift left
     RSHIFT, // Bitshift right
+    CAS,    // Compare and Swap
+    AADD,   // Atomic Add
     HLT,    // Halt
     OUT,    // Output
     IN,     // Input
@@ -305,6 +307,14 @@ state runCmd(machine *m, instruction instr) {
             return xor(m, instr);
         case NOT:
             return not(m, instr);
+        case LSHIFT:
+            return lshift(m, instr);
+        case RSHIFT:
+            return rshift(m, instr);
+        case CAS:
+            return cas(m, instr);
+        case AADD:
+            return aadd(m, instr);
         case HLT:
             return hlt(m, instr);
         case OUT:
@@ -340,6 +350,28 @@ state runCmd(machine *m, instruction instr) {
         return FAIL;
     fault(m, WORD_FAULT);
     return RUN;
+}
+
+typedef struct {
+    mword addr;
+    state state;
+    bool cont;
+} memResolution;
+
+memResolution resolve(machine *m, mword addr) {
+    if (m->protected) {
+        if (addr >= m->memory_size)
+            return (memResolution){addr, FAIL, false};
+    } else {
+        addr += m->vlow;
+        // Check addr < m->vlow because the addition
+        // could wrap around
+        if (addr < m->vlow || addr > m->vhigh) {
+            fault(m, VM_FAULT);
+            return (memResolution){addr, RUN, false};
+        }
+    }
+    return (memResolution){addr, RUN, true};
 }
 
 // Move
@@ -396,45 +428,23 @@ state cjmp(machine *m, instruction instr) {
 
 // Load
 state load(machine *m, instruction instr) {
-    mword addr;
-    if (m->protected) {
-        addr = m->reg[instr.fields.b];
-        if (addr >= m->memory_size)
-            return FAIL;
-        
-    } else {
-        addr = m->vlow + m->reg[instr.fields.b];
-        // Check addr < m->vlow because the addition
-        // could wrap around
-        if (addr < m->vlow || addr > m->vhigh) {
-            fault(m, VM_FAULT);
-            return RUN;
-        }
+    memResolution mr = resolve(m, m->reg[instr.fields.b]);
+    if (!mr.cont) {
+        return mr.state;
     }
 
-    m->reg[instr.fields.a] = m->memory[addr];
+    m->reg[instr.fields.a] = m->memory[mr.addr];
     return RUN;
 }
 
 // Store
 state store(machine *m, instruction instr) {
-    mword addr;
-    if (m->protected) {
-        addr = m->reg[instr.fields.a];
-        if (addr >= m->memory_size)
-            return FAIL;
-        
-    } else {
-        addr = m->vlow + m->reg[instr.fields.a];
-        // Check addr < m->vlow because the addition
-        // could wrap around
-        if (addr < m->vlow || addr > m->vhigh) {
-            fault(m, VM_FAULT);
-            return RUN;
-        }
+    memResolution mr = resolve(m, m->reg[instr.fields.a]);
+    if (!mr.cont) {
+        return mr.state;
     }
 
-    m->memory[addr] = m->reg[instr.fields.b];
+    m->memory[mr.addr] = m->reg[instr.fields.b];
     return RUN;
 }
 
@@ -475,7 +485,7 @@ state smult(machine *m, instruction instr) {
 state divide(machine *m, instruction instr) {
     if (m->protected) {
         if (m->reg[instr.fields.c] == 0)
-            return FAIL;;
+            return FAIL;
     } else {
         if (m->reg[instr.fields.c] == 0) {
             fault(m, DIV_ZERO_FAULT);
@@ -491,7 +501,7 @@ state divide(machine *m, instruction instr) {
 state sdivide(machine *m, instruction instr) {
     if (m->protected) {
         if (m->reg[instr.fields.c] == 0)
-            return FAIL;;
+            return FAIL;
     } else {
         if (m->reg[instr.fields.c] == 0) {
             fault(m, DIV_ZERO_FAULT);
@@ -545,6 +555,31 @@ state lshift(machine *m, instruction instr) {
 // Right shift
 state rshift(machine *m, instruction instr) {
     m->reg[instr.fields.a] = m->reg[instr.fields.b] >> m->reg[instr.fields.c];
+    return RUN;
+}
+
+// Compare and swap
+state cas(machine *m, instruction instr) {
+    memResolution mr = resolve(m, m->reg[instr.fields.a]);
+    if (!mr.cont) {
+        return mr.state;
+    }
+    if (m->memory[mr.addr] == m->reg[instr.fields.b]) {
+        m->memory[mr.addr] = m->reg[instr.fields.c];
+        m->reg[instr.fields.b] = 1;
+    } else {
+        m->reg[instr.fields.b] = 0;
+    }
+    return RUN;
+}
+
+// Atomic add
+state aadd(machine *m, instruction instr) {
+    memResolution mr = resolve(m, m->reg[instr.fields.a]);
+    if (!mr.cont) {
+        return mr.state;
+    }
+    m->memory[mr.addr] += m->reg[instr.fields.b];
     return RUN;
 }
 
